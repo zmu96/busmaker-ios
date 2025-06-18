@@ -7,7 +7,7 @@ iOS 버스·도보 경로 탐색 앱 (네이버 검색 API, TAGO API 연동)
 
 ## 📱 프로젝트 소개
 
-**Bus Route Finder**는 출발지와 도착지 입력만으로  
+**Busmaker**는 출발지와 도착지 입력만으로  
 실제 지도(MapKit)에 경로를 표시해주는 iOS 버스 경로 탐색 앱입니다.  
 지도와 리스트 UI를 모두 지원하며,  
 실시간 내 위치(GPS) 기반 이동도 제공합니다.
@@ -100,24 +100,6 @@ MapKit을 사용해
  사용자 실시간 위치 및 주요 지점 강조 표시
 
 
-```
-
-## 📦 디렉터리 구조
-
-```
-
-├── BusRouteFinder/
-│   ├── AppDelegate.swift
-│   ├── SceneDelegate.swift
-│   ├── Main.storyboard
-│   ├── RouteListViewController.swift
-│   ├── RouteMapViewController.swift
-│   ├── Model/
-│   │   └── (예: Route.swift, Station.swift)
-│   └── ...
-
-```
-
 ---
 
 ## ⚙️ 실행 방법
@@ -131,9 +113,9 @@ MapKit을 사용해
 
 ## 📝 향후 개발 계획
   25.06.18
-  macincloud 서버 오류로 read.me에 해당 작업 내용 작성, 문제 해결 후 read.me에 있는 내용 기반으로 앱에 추가 예정
+  macincloud 서버 오류로 readme에 해당 작업 내용 작성, 문제 해결 후 read.me에 있는 내용 기반으로 앱에 추가 예정
   
-- 즐겨찾기 경로 저장/불러오기
+- 즐겨찾기 경로 저장/불러오기(readme에 작성 완료)
 - 최근 검색어 기능
   
   ---
@@ -154,19 +136,190 @@ MapKit을 사용해
 macincloud 서버 오류로 read.me에 추가 작업 내용 작성 - **파일 추가 후 버튼 추가 및 아웃렛 연결 필요**
 
 <즐겨찾기 데이터 구조 설계> - UserDefaults 사용
+총 5개 파일 추가/수정
+FavoriteRoute.swift
+ → 즐겨찾기 데이터 모델(10자 제한)
 
+FavoriteRouteManager.swift
+ → 저장/불러오기/중복/최대 개수 정책
 
+RouteListViewController.swift
+ → ★ 버튼 누르면 즐겨찾기 추가
 
+SearchViewController.swift
+ → 해당 화면에 즐겨찾기 버튼 추가, 버튼 클릭 시 곧바로 지도 화면 이동
 
+RouteMapViewController.swift
+ → 전달받은 경로 정보를 마커/경로선으로 지도에 표시
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+ -파일 추가/수정 외 해야하는 작업-
+ 
+ 각 ViewController 간 데이터 전달
+(예: 즐겨찾기 버튼 클릭 → RouteMapViewController에 정보 넘기기)
 
+스토리보드(Storyboard)에서 UI 연결
+(예: TableView, IBOutlet/IBAction 등)
 
+버튼 디자인
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+// FavoriteRoute.swift  **신규 파일 생성**
+import Foundation
+import CoreLocation
 
+struct FavoriteRoute: Codable, Equatable {
+    let startName: String
+    let startLatitude: Double
+    let startLongitude: Double
+    let endName: String
+    let endLatitude: Double
+    let endLongitude: Double
+    
+    // 10자 제한된 이름 반환 (즐겨찾기 버튼에 들어갈 문구, 10자 제한)
+    var startNameShort: String {
+        return startName.count > 10 ? String(startName.prefix(10)) + "…" : startName
+    }
+    var endNameShort: String {
+        return endName.count > 10 ? String(endName.prefix(10)) + "…" : endName
+    }
+}
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+// FavoriteRouteManager.swift **신규 파일 생성**
+import Foundation
 
+class FavoriteRouteManager {
+    static let shared = FavoriteRouteManager()
+    private let key = "favoriteRoutes"
+    private let maxCount = 5
+    
+    private init() {}
+    
+    func loadFavorites() -> [FavoriteRoute] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let routes = try? JSONDecoder().decode([FavoriteRoute].self, from: data) else {
+            return []
+        }
+        return routes
+    }
+    
+    func saveFavorites(_ routes: [FavoriteRoute]) {
+        if let data = try? JSONEncoder().encode(routes) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+    
+    // 즐겨찾기 추가 (중복/최대개수 처리)
+    func addFavorite(_ route: FavoriteRoute) -> Result<Void, FavoriteError> {
+        var routes = loadFavorites()
+        // 중복 검사
+        if routes.contains(route) {
+            return .failure(.duplicate)
+        }
+        // 최대 개수 초과
+        if routes.count >= maxCount {
+            return .failure(.overLimit)
+        }
+        routes.append(route)
+        saveFavorites(routes)
+        return .success(())
+    }
+    
+    enum FavoriteError: Error {
+        case duplicate
+        case overLimit
+    }
+}
 
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+// RouteListViewController.swift **내용 추가**
+import UIKit
 
+class RouteListViewController: UIViewController {
+    // ... 기존 코드 생략
 
+    // ★ 버튼 클릭 시
+    func addToFavorites(route: Route) {
+        let favorite = FavoriteRoute(
+            startName: route.startName,
+            startLatitude: route.startLat,
+            startLongitude: route.startLng,
+            endName: route.endName,
+            endLatitude: route.endLat,
+            endLongitude: route.endLng
+        )
+        let result = FavoriteRouteManager.shared.addFavorite(favorite)
+        switch result {
+        case .success():
+            // 안내 메시지 or UI 갱신
+            print("즐겨찾기에 추가되었습니다.")
+        case .failure(let error):
+            switch error {
+            case .duplicate:
+                print("이미 등록된 즐겨찾기입니다.")
+            case .overLimit:
+                print("즐겨찾기는 최대 5개까지 등록할 수 있습니다.")
+            }
+        }
+    }
+}
 
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+// SearchViewController.swift  **내용 추가**
+import UIKit
 
+class SearchViewController: UIViewController {
+    // ... 기존 코드
+
+    @IBOutlet weak var favoritesStackView: UIStackView! // (Interface Builder로 추가)
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        updateFavoriteButtons()
+    }
+
+    func updateFavoriteButtons() {
+        let favorites = FavoriteRouteManager.shared.loadFavorites()
+        favoritesStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        for route in favorites {
+            let button = UIButton(type: .system)
+            button.setTitle("\(route.startNameShort) → \(route.endNameShort)", for: .normal)
+            button.addTarget(self, action: #selector(favoriteButtonTapped(_:)), for: .touchUpInside)
+            button.tag = favorites.firstIndex(of: route) ?? 0
+            favoritesStackView.addArrangedSubview(button)
+        }
+    }
+
+    @objc func favoriteButtonTapped(_ sender: UIButton) {
+        let favorites = FavoriteRouteManager.shared.loadFavorites()
+        let route = favorites[sender.tag]
+        // RouteMapViewController로 이동, route 정보 전달
+        showRouteOnMap(favoriteRoute: route)
+    }
+
+    func showRouteOnMap(favoriteRoute: FavoriteRoute) {
+        // RouteMapViewController에 route 정보 넘기는 코드 구현
+    }
+}
+
+ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+// RouteMapViewController.swift   **내용 추가**
+import UIKit
+import MapKit
+
+class RouteMapViewController: UIViewController {
+    var favoriteRoute: FavoriteRoute?
+
+    // ... 기존 지도 코드
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        if let route = favoriteRoute {
+            // 마커, 경로선 표시 코드 구현
+            let start = CLLocationCoordinate2D(latitude: route.startLatitude, longitude: route.startLongitude)
+            let end = CLLocationCoordinate2D(latitude: route.endLatitude, longitude: route.endLongitude)
+            // 마커 추가, 폴리라인 추가 등
+        }
+    }
+}
 
 
 
