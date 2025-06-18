@@ -12,9 +12,7 @@ iOS 버스·도보 경로 탐색 앱 (네이버 검색 API, TAGO API 연동)
 지도와 리스트 UI를 모두 지원하며,  
 실시간 내 위치(GPS) 기반 이동도 제공합니다.
 
-
-[버스메이커-ios.pptx](https://github.com/user-attachments/files/20795083/-ios.pptx)
-[버스메이커-ios.pptx](https://github.com/user-attachments/files/20795083/-ios.pptx)
+버스메이커 앱 개발 발표 ppt
 [버스메이커-ios.pptx](https://github.com/user-attachments/files/20795083/-ios.pptx)
 
 
